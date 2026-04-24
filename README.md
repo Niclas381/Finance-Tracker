@@ -1,3 +1,3 @@
-# finance_tracker
+# Finance Tracker
 
-A new Flutter project.
+A mobile App for tracking financials
