@@ -10,7 +10,6 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/receipt_dao.dart';
 import '../../data/settings_dao.dart';
 import '../../models/receipt_models.dart';
-import '../../../../shared/auth/auth_service.dart';
 import '../../services/receipt_ocr_service.dart';
 import '../../services/ocr_banlist.dart';
 import 'widgets/budget_ring.dart';
@@ -586,10 +585,6 @@ class _FinanceHomePageState extends State<FinanceHomePage> {
     _dynamicCategories.removeWhere((c) => c.name == category.name);
     await _saveDynamicCategoriesToSettings();
     await _loadData();
-  }
-
-  Future<void> _signOut() async {
-    await AuthService.instance.signOut();
   }
 
   /// Öffnet die Kamera zum Scannen eines Kassenzettels
@@ -1542,15 +1537,6 @@ class _FinanceHomePageState extends State<FinanceHomePage> {
               await _loadMessageIngestionState();
               _openMessageIngestionSheet();
             },
-          ),
-          IconButton(
-            tooltip: 'Abmelden',
-            icon: const Icon(Icons.logout),
-            iconSize: 20,
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            onPressed: _signOut,
           ),
         ],
       ),

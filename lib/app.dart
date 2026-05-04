@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'shared/theme/theme.dart';
 import 'shared/navigation/navigator_key.dart';
-import 'shared/auth/auth_gate.dart';
+import 'suite/suite_home_page.dart';
 import 'apps/finance_tracker/services/share_intent_service.dart';
 import 'apps/finance_tracker/services/message_ingestion_manager.dart';
 import 'apps/finance_tracker/ui/receipts/shared_receipt_preview_page.dart';
@@ -58,7 +58,7 @@ class _MyAppState extends State<MyApp> {
       title: 'Finanztracker',
       theme: AppTheme.darkTheme,
       debugShowCheckedModeBanner: false,
-      home: const AuthGate(),
+      home: const SuiteHomePage(),
     );
   }
 }
