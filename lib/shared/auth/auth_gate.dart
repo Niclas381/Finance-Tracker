@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'auth_service.dart';
-import '../../apps/finance_tracker/ui/home/finance_home_page.dart';
+import '../../suite/suite_home_page.dart';
 import 'sign_in_page.dart';
 
 class AuthGate extends StatelessWidget {
@@ -23,7 +23,7 @@ class AuthGate extends StatelessWidget {
 
         if (snapshot.hasData) {
           // User ist eingeloggt
-          return const FinanceHomePage();
+          return const SuiteHomePage();
         }
 
         // Nicht eingeloggt
