@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import 'core/theme.dart';
+import 'shared/theme/theme.dart';
 import 'data/receipt_dao.dart';
 import 'services/share_intent_service.dart';
 import 'services/message_ingestion_manager.dart';
-import 'ui/auth/auth_gate.dart';
+import 'shared/auth/auth_gate.dart';
 import 'ui/receipts/shared_receipt_preview_page.dart';
 
 /// GlobalKey für Navigation von überall in der App

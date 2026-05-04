@@ -10,7 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/receipt_dao.dart';
 import '../../data/settings_dao.dart';
 import '../../models/receipt_models.dart';
-import '../../services/auth_service.dart';
+import '../../shared/auth/auth_service.dart';
 import '../../services/receipt_ocr_service.dart';
 import '../../services/ocr_banlist.dart';
 import 'widgets/budget_ring.dart';

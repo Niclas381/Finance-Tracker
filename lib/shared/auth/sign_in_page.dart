@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../services/auth_service.dart';
+import 'auth_service.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
