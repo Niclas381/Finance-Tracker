@@ -10,7 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/receipt_dao.dart';
 import '../../data/settings_dao.dart';
 import '../../models/receipt_models.dart';
-import '../../shared/auth/auth_service.dart';
+import '../../../../shared/auth/auth_service.dart';
 import '../../services/receipt_ocr_service.dart';
 import '../../services/ocr_banlist.dart';
 import 'widgets/budget_ring.dart';
@@ -28,11 +28,11 @@ import '../../platform/inbound_message_bridge.dart';
 import '../../services/message_ingestion_manager.dart';
 import '../../services/message_payment_recognition_service.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class FinanceHomePage extends StatefulWidget {
+  const FinanceHomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<FinanceHomePage> createState() => _FinanceHomePageState();
 }
 
 /// Dynamische Kategorie mit Budget & aktuellem Verbrauch
@@ -48,7 +48,7 @@ class _DynamicCategory {
   });
 }
 
-class _HomePageState extends State<HomePage> {
+class _FinanceHomePageState extends State<FinanceHomePage> {
   final _receiptDao = ReceiptDao();
   final _settingsDao = SettingsDao();
 

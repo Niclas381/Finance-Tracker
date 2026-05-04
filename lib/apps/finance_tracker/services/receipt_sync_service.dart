@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../data/receipt_dao.dart';
 import '../models/receipt_models.dart';
-import '../shared/auth/auth_service.dart';
+import '../../../shared/auth/auth_service.dart';
 import 'receipt_pdf_text_service.dart';
 
 /// Synchronisiert Kassenzettel/Rechnungen aus Gmail.

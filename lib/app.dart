@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'shared/theme/theme.dart';
 import 'shared/navigation/navigator_key.dart';
-import 'services/share_intent_service.dart';
-import 'services/message_ingestion_manager.dart';
 import 'shared/auth/auth_gate.dart';
-import 'ui/receipts/shared_receipt_preview_page.dart';
+import 'apps/finance_tracker/services/share_intent_service.dart';
+import 'apps/finance_tracker/services/message_ingestion_manager.dart';
+import 'apps/finance_tracker/ui/receipts/shared_receipt_preview_page.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
