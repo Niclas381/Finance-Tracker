@@ -7,7 +7,7 @@ const financeSubApp = SubApp(
   id: 'finance',
   title: 'Finanzen',
   icon: Icons.account_balance_wallet,
-  accent: Color(0xFF4CAF50),
+  accent: Colors.green,
   builder: _build,
 );
 
