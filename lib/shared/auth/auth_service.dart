@@ -8,7 +8,6 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // WICHTIG: Gmail-Readonly Scope hinzufügen
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: <String>[
       'email',
@@ -23,49 +22,31 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
 
-  GoogleSignIn get googleSignIn => _googleSignIn;
-
   /// Letzter bekannter Gmail Access Token (wird bei signInWithGoogle gesetzt).
-  /// Kann null sein, wenn der User noch keinen Google-SignIn gemacht hat.
   String? get accessToken => _accessToken;
 
   String? get idToken => _idToken;
 
   Future<UserCredential?> signInWithGoogle() async {
-    // User wählt Google-Account
-    final googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) {
-      // Abgebrochen
+    try {
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        return null;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      _accessToken = googleAuth.accessToken;
+      _idToken = googleAuth.idToken;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      return await _auth.signInWithCredential(credential);
+    } catch (e) {
       return null;
     }
-
-    // Token abholen
-    final googleAuth = await googleUser.authentication;
-
-    // Token lokal merken (für Gmail Calls)
-    _accessToken = googleAuth.accessToken;
-    _idToken = googleAuth.idToken;
-
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    // Bei Firebase anmelden
-    final userCredential = await _auth.signInWithCredential(credential);
-    return userCredential;
-  }
-
-  /// Optional: versucht stillen Sign-In um Token zu refreshen.
-  /// Falls du es später brauchst, kannst du im Sync-Service hierauf wechseln.
-  Future<String?> refreshAccessTokenSilently() async {
-    final googleUser = await _googleSignIn.signInSilently();
-    if (googleUser == null) return _accessToken;
-
-    final googleAuth = await googleUser.authentication;
-    _accessToken = googleAuth.accessToken;
-    _idToken = googleAuth.idToken;
-    return _accessToken;
   }
 
   Future<void> signOut() async {
@@ -73,5 +54,19 @@ class AuthService {
     _idToken = null;
     await _auth.signOut();
     await _googleSignIn.signOut();
+  }
+
+  Future<String?> refreshAccessTokenSilently() async {
+    try {
+      final googleUser = await _googleSignIn.signInSilently();
+      if (googleUser == null) return null;
+
+      final googleAuth = await googleUser.authentication;
+      _accessToken = googleAuth.accessToken;
+      _idToken = googleAuth.idToken;
+      return _accessToken;
+    } catch (e) {
+      return null;
+    }
   }
 }

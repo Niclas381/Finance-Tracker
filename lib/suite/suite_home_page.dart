@@ -72,7 +72,7 @@ class _SuiteHomePageState extends State<SuiteHomePage> {
               final isLoggedIn = snapshot.hasData;
               return IconButton(
                 tooltip: isLoggedIn ? 'Abmelden' : 'Mit Google anmelden',
-                icon: Icon(isLoggedIn ? Icons.logout : Icons.login),
+                icon: Icon(isLoggedIn ? Icons.logout : Icons.person_outline),
                 onPressed: isLoggedIn ? _signOut : _signIn,
               );
             },
@@ -81,21 +81,64 @@ class _SuiteHomePageState extends State<SuiteHomePage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1,
-          ),
-          itemCount: kSubApps.length,
-          itemBuilder: (context, index) {
-            final app = kSubApps[index];
-            return SubAppTile(
-              app: app,
-              onTap: () => _openSubApp(context, app),
-            );
-          },
+        child: ListView(
+          children: [
+            AspectRatio(
+              aspectRatio: 2.2,
+              child: SubAppTile(
+                app: kSubApps[0], // Finance Tracker
+                onTap: () => _openSubApp(context, kSubApps[0]),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: SubAppTile(
+                      app: kSubApps[1], // To-Do
+                      onTap: () => _openSubApp(context, kSubApps[1]),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: SubAppTile(
+                      app: kSubApps[2], // Kalender
+                      onTap: () => _openSubApp(context, kSubApps[2]),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: SubAppTile(
+                      app: kSubApps[3], // Kalorientracker
+                      onTap: () => _openSubApp(context, kSubApps[3]),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: SubAppTile(
+                      app: kSubApps[4], // Workout Planer
+                      onTap: () => _openSubApp(context, kSubApps[4]),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
