@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../suite/sub_app.dart';
+import 'ui/calendar_home_page.dart';
 
 const calendarSubApp = SubApp(
   id: 'calendar',
@@ -10,15 +11,3 @@ const calendarSubApp = SubApp(
 );
 
 Widget _build(BuildContext context) => const CalendarHomePage();
-
-class CalendarHomePage extends StatelessWidget {
-  const CalendarHomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Kalender')),
-      body: const Center(child: Text('Kalender Seite (in Entwicklung)')),
-    );
-  }
-}
