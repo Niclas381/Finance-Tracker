@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-const _bg = Color(0xFF07070F);
-const _cardBg = Color(0xFF110F22);
-const _active = Color(0xFF9D7FFF);
-const _headerColor = Color(0xFFD0C8FF);
-const _timeColor = Color(0xFF5A5580);
-const _dividerColor = Color(0xFF1E1B38);
-const _mutedColor = Color(0xFF3D3860);
+const _bg = Color(0xFF0A0A0A);
+const _cardBg = Color(0xFF141414);
+const _active = Color(0xFFFFFFFF);
+const _headerColor = Color(0xFFFFFFFF);
+const _timeColor = Color(0xFF606060);
+const _dividerColor = Color(0xFF222222);
+const _mutedColor = Color(0xFF505050);
 
 const _weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const _monthNamesShort = [
@@ -23,7 +23,9 @@ class DayView extends StatefulWidget {
   State<DayView> createState() => _DayViewState();
 }
 
-class _DayViewState extends State<DayView> {
+class _DayViewState extends State<DayView> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   int _startHour = 6;
   int _endHour = 22;
   int _intervalMinutes = 60;
@@ -73,6 +75,7 @@ class _DayViewState extends State<DayView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final slots = _buildSlots();
 
     return Container(
@@ -271,8 +274,8 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                         horizontal: 18, vertical: 9),
                     decoration: BoxDecoration(
                       color: selected
-                          ? const Color(0xFF221E45)
-                          : const Color(0xFF0F0D1E),
+                          ? const Color(0xFF2A2A2A)
+                          : const Color(0xFF141414),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: selected
@@ -307,7 +310,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                 Navigator.of(context).pop();
               },
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF221E45),
+                backgroundColor: const Color(0xFF2A2A2A),
                 foregroundColor: _active,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(

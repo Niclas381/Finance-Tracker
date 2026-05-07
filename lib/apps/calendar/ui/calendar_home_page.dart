@@ -6,11 +6,11 @@ import 'month_view.dart';
 import 'week_view.dart';
 
 // ── Palette ─────────────────────────────────────────────────────────────────
-const _bg = Color(0xFF07070F);
-const _barBg = Color(0xFF110F22);
-const _active = Color(0xFF9D7FFF);
-const _inactive = Color(0xFF3D3860);
-const _backIcon = Color(0xFF5C5880);
+const _bg = Color(0xFF0A0A0A);
+const _barBg = Color(0xFF141414);
+const _active = Color(0xFFFFFFFF);
+const _inactive = Color(0xFF505050);
+const _backIcon = Color(0xFF606060);
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum _CalView { day, week, month }
@@ -25,12 +25,35 @@ class CalendarHomePage extends StatefulWidget {
 class _CalendarHomePageState extends State<CalendarHomePage> {
   _CalView _view = _CalView.month;
   DateTime _selectedDate = DateTime.now();
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _CalView.month.index);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _switchView(_CalView view) {
+    setState(() => _view = view);
+    _pageController.animateToPage(
+      view.index,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeInOutCubicEmphasized,
+    );
+  }
 
   void _openDay(DateTime date) {
     setState(() {
       _selectedDate = date;
       _view = _CalView.day;
     });
+    _pageController.jumpToPage(_CalView.day.index);
   }
 
   @override
@@ -57,24 +80,63 @@ class _CalendarHomePageState extends State<CalendarHomePage> {
             ),
           ),
         ),
-        body: IndexedStack(
-          index: _view.index,
+        body: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            DayView(date: _selectedDate),
-            const WeekView(),
-            MonthView(onDayTapped: _openDay),
+            _ScaleFadePage(controller: _pageController, index: 0,
+                child: DayView(date: _selectedDate)),
+            _ScaleFadePage(controller: _pageController, index: 1,
+                child: const WeekView()),
+            _ScaleFadePage(controller: _pageController, index: 2,
+                child: MonthView(onDayTapped: _openDay)),
           ],
         ),
         bottomNavigationBar: _BottomBar(
           view: _view,
           onBack: () => Navigator.of(context).pop(),
-          onViewChanged: (v) => setState(() => _view = v),
+          onViewChanged: _switchView,
         ),
       ),
     );
   }
 }
 
+// ── Per-page scale + fade wrapper ───────────────────────────────────────────
+class _ScaleFadePage extends StatelessWidget {
+  const _ScaleFadePage({
+    required this.controller,
+    required this.index,
+    required this.child,
+  });
+
+  final PageController controller;
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        final page = controller.hasClients && controller.page != null
+            ? controller.page!
+            : index.toDouble();
+        final distance = (page - index).abs().clamp(0.0, 1.0);
+        final scale = 1.0 - distance * 0.06;
+        final opacity = 1.0 - distance * 0.45;
+
+        return Transform.scale(
+          scale: scale,
+          child: Opacity(opacity: opacity, child: child),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+// ── Bottom bar ───────────────────────────────────────────────────────────────
 class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.view,
@@ -113,7 +175,7 @@ class _BottomBar extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1A35),
+                  color: const Color(0xFF222222),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(Icons.arrow_back_rounded,
@@ -173,7 +235,7 @@ class _NavButton extends StatelessWidget {
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF221E45) : Colors.transparent,
+            color: selected ? const Color(0xFF242424) : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
             border: selected
                 ? Border.all(color: _active.withValues(alpha: 0.35), width: 1)
