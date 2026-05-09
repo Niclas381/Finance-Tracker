@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -8,6 +10,15 @@ import 'apps/finance_tracker/services/share_intent_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Höchste vom Display unterstützte Bildwiederholrate anfordern (Android only;
+  // iOS/ProMotion läuft seit Flutter 3.13 automatisch). Schlägt auf nicht
+  // unterstützten Plattformen still fehl.
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (_) {}
+  }
 
   // Firebase initialisieren
   await Firebase.initializeApp();

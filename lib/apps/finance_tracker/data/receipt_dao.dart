@@ -268,6 +268,34 @@ class ReceiptDao {
     return sum;
   }
 
+  /// Tagesausgaben eines Monats als Map<Tag, Betrag>.
+  /// Gebannte Bons werden ignoriert. Tage ohne Ausgaben fehlen in der Map.
+  Future<Map<int, double>> getDailyTotalsInMonth(DateTime month) async {
+    final isar = await _isar;
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 1);
+
+    final receipts = await isar.receipts
+        .filter()
+        .isBannedEqualTo(false)
+        .dateTimeBetween(start, end)
+        .findAll();
+
+    final Map<int, double> totals = {};
+    for (final r in receipts) {
+      double value = r.total;
+      if (value <= 0) {
+        await r.lineItems.load();
+        value = r.lineItems.fold<double>(0.0, (s, li) => s + li.totalPrice);
+      }
+      if (value > 0) {
+        final day = r.dateTime.day;
+        totals[day] = (totals[day] ?? 0) + value;
+      }
+    }
+    return totals;
+  }
+
   // -------------------------
   // INTERNAL HELPERS
   // -------------------------

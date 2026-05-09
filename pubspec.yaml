@@ -49,6 +49,9 @@ dependencies:
   path: ^1.9.0
   http: ^1.2.2
 
+  # Hohe Bildwiederholrate (120 Hz) auf unterstützten Android-Geräten
+  flutter_displaymode: ^0.6.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

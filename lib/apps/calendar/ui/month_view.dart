@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../finance_tracker/data/receipt_dao.dart';
 
 const _bg = Color(0xFF0A0A0A);
 const _cardBg = Color(0xFF141414);
@@ -13,6 +14,24 @@ const _monthsShort = [
   'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
   'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez',
 ];
+
+// File-level spending cache. Persists for the lifetime of the isolate so the
+// data survives navigating away from and back to the calendar.
+// Pages read from this synchronously in initState and only setState themselves
+// (not the parent) when an async load completes — avoids any parent rebuild.
+final Map<int, Map<int, double>> _dailyTotalsCache = {};
+final Map<int, Future<Map<int, double>>> _dailyTotalsInFlight = {};
+
+Future<Map<int, double>> _loadDailyTotals(int pageIndex, DateTime month) {
+  final cached = _dailyTotalsCache[pageIndex];
+  if (cached != null) return Future.value(cached);
+  return _dailyTotalsInFlight.putIfAbsent(pageIndex, () async {
+    final totals = await ReceiptDao().getDailyTotalsInMonth(month);
+    _dailyTotalsCache[pageIndex] = totals;
+    _dailyTotalsInFlight.remove(pageIndex);
+    return totals;
+  });
+}
 
 class MonthView extends StatefulWidget {
   const MonthView({super.key, required this.onDayTapped});
@@ -31,10 +50,11 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
   late final PageController _pageController;
   late final ScrollController _barController;
 
-  // Tracks whether the user is actively scrolling the bar, so we don't
-  // create a feedback loop when we programmatically scroll it from the PageView.
   bool _userScrollingBar = false;
-  int _currentPage = _kInitialPage;
+  // ValueNotifier instead of plain int + setState — only widgets that
+  // explicitly listen (the bar chips) rebuild on page change. The PageView
+  // and parent widget tree stay untouched, eliminating the mid-swipe rebuild.
+  late final ValueNotifier<int> _currentPage;
 
   static const int _kInitialPage = 1200; // ±100 years from today
   static const int _kItemCount = 2400;
@@ -43,10 +63,14 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
   @override
   void initState() {
     super.initState();
+    _currentPage = ValueNotifier<int>(_kInitialPage);
     _pageController = PageController(initialPage: _kInitialPage);
     _barController = ScrollController();
     _pageController.addListener(_onPageChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncBarToPage());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncBarToPage();
+      _preloadSpending(_kInitialPage);
+    });
   }
 
   @override
@@ -54,6 +78,7 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
     _pageController.removeListener(_onPageChanged);
     _pageController.dispose();
     _barController.dispose();
+    _currentPage.dispose();
     super.dispose();
   }
 
@@ -62,11 +87,19 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
     return DateTime(_today.year, _today.month + diff);
   }
 
+  void _preloadSpending(int center) {
+    for (final p in [center - 1, center, center + 1]) {
+      if (p < 0 || p >= _kItemCount) continue;
+      _loadDailyTotals(p, _monthForPage(p)); // fire and forget — fills cache
+    }
+  }
+
   void _onPageChanged() {
     if (!_pageController.hasClients) return;
     final page = _pageController.page?.round() ?? _kInitialPage;
-    if (page != _currentPage) {
-      setState(() => _currentPage = page);
+    if (page != _currentPage.value) {
+      _currentPage.value = page; // notifier — no parent rebuild
+      _preloadSpending(page);
     }
     // Don't reposition the bar while the user is browsing it.
     if (!_userScrollingBar) {
@@ -86,18 +119,20 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
   }
 
   void _goToPage(int page) {
-    _pageController.animateToPage(
-      page.clamp(0, _kItemCount - 1),
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeInOutCubic,
-    );
+    final clamped = page.clamp(0, _kItemCount - 1);
+    // For large jumps use jumpToPage so the PageView doesn't animate through
+    // all intermediate months, which would build a widget + fire a DB query
+    // for every month in between.
+    if ((clamped - _currentPage.value).abs() > 1) {
+      _pageController.jumpToPage(clamped);
+    } else {
+      _pageController.animateToPage(
+        clamped,
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeInOutCubic,
+      );
+    }
   }
-
-  bool _isToday(DateTime? d) =>
-      d != null &&
-      d.year == _today.year &&
-      d.month == _today.month &&
-      d.day == _today.day;
 
   /// Returns (year, x) pairs for the sticky year labels rendered over the bar.
   ///
@@ -147,20 +182,6 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
     return result;
   }
 
-  List<List<DateTime?>> _computeGrid(DateTime month) {
-    final firstDay = DateTime(month.year, month.month, 1);
-    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
-    final startPad = firstDay.weekday - 1;
-
-    final cells = <DateTime?>[
-      ...List.filled(startPad, null),
-      for (int d = 1; d <= daysInMonth; d++) DateTime(month.year, month.month, d),
-    ];
-    while (cells.length % 7 != 0) { cells.add(null); }
-
-    return [for (int i = 0; i < cells.length; i += 7) cells.sublist(i, i + 7)];
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -191,14 +212,18 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
                     itemExtent: _kItemWidth,
                     itemBuilder: (context, index) {
                       final month = _monthForPage(index);
+                      final isCurrentMonth =
+                          month.year == _today.year && month.month == _today.month;
                       return GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () => _goToPage(index),
-                        child: _BarChip(
-                          month: month,
-                          isSelected: index == _currentPage,
-                          isCurrentMonth:
-                              month.year == _today.year && month.month == _today.month,
+                        child: ValueListenableBuilder<int>(
+                          valueListenable: _currentPage,
+                          builder: (context, current, _) => _BarChip(
+                            month: month,
+                            isSelected: index == current,
+                            isCurrentMonth: isCurrentMonth,
+                          ),
                         ),
                       );
                     },
@@ -263,38 +288,109 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
           Expanded(
             child: PageView.builder(
               controller: _pageController,
+              physics: const _SnappyPagePhysics(),
               itemCount: _kItemCount,
-              itemBuilder: (context, index) {
-                final month = _monthForPage(index);
-                final grid = _computeGrid(month);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Column(
-                    children: grid.map((week) {
-                      return Expanded(
-                        child: Row(
-                          children: week.map((day) {
-                            return Expanded(
-                              child: _DayCell(
-                                day: day,
-                                isToday: _isToday(day),
-                                onTap: day != null
-                                    ? () => widget.onDayTapped(day)
-                                    : null,
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                );
-              },
+              itemBuilder: (context, index) => _MonthGridPage(
+                pageIndex: index,
+                month: _monthForPage(index),
+                today: _today,
+                onDayTapped: widget.onDayTapped,
+              ),
             ),
           ),
 
           const SizedBox(height: 8),
         ],
+      ),
+    );
+  }
+}
+
+// ── Month grid page ───────────────────────────────────────────────────────────
+
+class _MonthGridPage extends StatefulWidget {
+  const _MonthGridPage({
+    required this.pageIndex,
+    required this.month,
+    required this.today,
+    required this.onDayTapped,
+  });
+
+  final int pageIndex;
+  final DateTime month;
+  final DateTime today;
+  final ValueChanged<DateTime> onDayTapped;
+
+  @override
+  State<_MonthGridPage> createState() => _MonthGridPageState();
+}
+
+class _MonthGridPageState extends State<_MonthGridPage> {
+  // Grid structure never changes for a given month — compute once in initState.
+  late final List<List<DateTime?>> _grid;
+  // Synchronously taken from the cache when possible; only set via setState
+  // (on this page only, not the parent) when an async load completes.
+  Map<int, double>? _totals;
+
+  @override
+  void initState() {
+    super.initState();
+    _grid = _buildGrid();
+
+    final cached = _dailyTotalsCache[widget.pageIndex];
+    if (cached != null) {
+      _totals = cached; // synchronous fast path — most common case after preload
+    } else {
+      _loadDailyTotals(widget.pageIndex, widget.month).then((totals) {
+        if (mounted) setState(() => _totals = totals);
+      });
+    }
+  }
+
+  List<List<DateTime?>> _buildGrid() {
+    final m = widget.month;
+    final firstDay = DateTime(m.year, m.month, 1);
+    final daysInMonth = DateTime(m.year, m.month + 1, 0).day;
+    final startPad = firstDay.weekday - 1;
+
+    final cells = <DateTime?>[
+      ...List.filled(startPad, null),
+      for (int d = 1; d <= daysInMonth; d++) DateTime(m.year, m.month, d),
+    ];
+    while (cells.length % 7 != 0) { cells.add(null); }
+
+    return [for (int i = 0; i < cells.length; i += 7) cells.sublist(i, i + 7)];
+  }
+
+  bool _isToday(DateTime? d) {
+    final t = widget.today;
+    return d != null && d.year == t.year && d.month == t.month && d.day == t.day;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totals = _totals ?? {};
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        children: _grid.map((week) {
+          return Expanded(
+            child: Row(
+              children: week.map((day) {
+                return Expanded(
+                  child: _DayCell(
+                    day: day,
+                    isToday: _isToday(day),
+                    spending: day != null ? totals[day.day] : null,
+                    onTap: day != null
+                        ? () => widget.onDayTapped(day)
+                        : null,
+                  ),
+                );
+              }).toList(),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -360,22 +456,32 @@ class _BarChip extends StatelessWidget {
 // ── Day cell ──────────────────────────────────────────────────────────────────
 
 class _DayCell extends StatelessWidget {
-  const _DayCell({this.day, required this.isToday, this.onTap});
+  const _DayCell({this.day, required this.isToday, this.onTap, this.spending});
   final DateTime? day;
   final bool isToday;
   final VoidCallback? onTap;
+  final double? spending;
+
+  String? get _spendingLabel {
+    if (spending == null || spending! < 0.5) return null;
+    final v = spending!;
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1).replaceAll('.', ',')}k€';
+    final rounded = v.round();
+    return '$rounded€';
+  }
 
   @override
   Widget build(BuildContext context) {
     if (day == null) return const SizedBox.expand();
+
+    final label = _spendingLabel;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+        child: Container(
           margin: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             color: isToday ? _activeBg : _cardBg.withValues(alpha: 0.6),
@@ -384,18 +490,121 @@ class _DayCell extends StatelessWidget {
                 ? Border.all(color: _active.withValues(alpha: 0.6), width: 1.5)
                 : Border.all(color: Colors.white.withValues(alpha: 0.04), width: 1),
           ),
-          child: Center(
-            child: Text(
-              '${day!.day}',
-              style: TextStyle(
-                color: isToday ? _active : _dayColor,
-                fontSize: 14,
-                fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    '${day!.day}',
+                    style: TextStyle(
+                      color: isToday ? _active : _dayColor,
+                      fontSize: 14,
+                      fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              if (label != null)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: _mutedColor,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
     );
+  }
+}
+
+// ── Snappy page physics ──────────────────────────────────────────────────────
+// Default PageScrollPhysics commits to the next page only after dragging past
+// 50% of the viewport (or with a hard flick). This variant lowers the drag
+// threshold to 15%, so a small swipe is enough — velocity-based commits still
+// behave the same.
+class _SnappyPagePhysics extends PageScrollPhysics {
+  const _SnappyPagePhysics({super.parent});
+
+  // 3% base drag distance commits. With even a touch of velocity in the drag
+  // direction, this drops further — see thresholdFor below.
+  static const double _threshold = 0.03;
+
+  // Snappier spring than the Flutter default — pages slide into place with
+  // less overshoot and feel more responsive after a flick.
+  static final SpringDescription _spring = SpringDescription.withDampingRatio(
+    mass: 0.3,
+    stiffness: 150,
+    ratio: 1.1,
+  );
+
+  @override
+  SpringDescription get spring => _spring;
+
+  @override
+  _SnappyPagePhysics applyTo(ScrollPhysics? ancestor) {
+    return _SnappyPagePhysics(parent: buildParent(ancestor));
+  }
+
+  double _page(ScrollMetrics position) =>
+      position.pixels / position.viewportDimension;
+
+  double _pixels(ScrollMetrics position, double page) =>
+      page * position.viewportDimension;
+
+  double _target(ScrollMetrics position, Tolerance tolerance, double velocity) {
+    final page = _page(position);
+    final base = page.floorToDouble();
+    final delta = page - base;
+
+    // Velocity in the drag direction collapses the threshold toward zero so
+    // even the tiniest flick commits. Moves like water.
+    double thresholdFor(double dirVelocity) {
+      if (dirVelocity <= 0) return _threshold;
+      return (_threshold - dirVelocity / 1000.0).clamp(0.002, _threshold);
+    }
+
+    double snap;
+    if (delta < 0.5) {
+      final t = thresholdFor(velocity);
+      snap = (delta < t) ? base : base + 1;
+    } else {
+      final backDelta = 1.0 - delta;
+      final t = thresholdFor(-velocity);
+      snap = (backDelta < t) ? base + 1 : base;
+    }
+    return _pixels(position, snap);
+  }
+
+  @override
+  Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) {
+    if ((velocity <= 0.0 && position.pixels <= position.minScrollExtent) ||
+        (velocity >= 0.0 && position.pixels >= position.maxScrollExtent)) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+    final tolerance = toleranceFor(position);
+    final target = _target(position, tolerance, velocity);
+    if (target != position.pixels) {
+      return ScrollSpringSimulation(
+        spring,
+        position.pixels,
+        target,
+        velocity,
+        tolerance: tolerance,
+      );
+    }
+    return null;
   }
 }

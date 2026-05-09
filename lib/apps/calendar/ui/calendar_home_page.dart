@@ -66,31 +66,20 @@ class _CalendarHomePageState extends State<CalendarHomePage> {
       ),
       child: Scaffold(
         backgroundColor: _bg,
-        appBar: AppBar(
-          backgroundColor: _bg,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          title: const Text(
-            'Kalender',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
+        body: SafeArea(
+          bottom: false,
+          child: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _ScaleFadePage(controller: _pageController, index: 0,
+                  child: DayView(date: _selectedDate)),
+              _ScaleFadePage(controller: _pageController, index: 1,
+                  child: WeekView(date: _selectedDate)),
+              _ScaleFadePage(controller: _pageController, index: 2,
+                  child: MonthView(onDayTapped: _openDay)),
+            ],
           ),
-        ),
-        body: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            _ScaleFadePage(controller: _pageController, index: 0,
-                child: DayView(date: _selectedDate)),
-            _ScaleFadePage(controller: _pageController, index: 1,
-                child: const WeekView()),
-            _ScaleFadePage(controller: _pageController, index: 2,
-                child: MonthView(onDayTapped: _openDay)),
-          ],
         ),
         bottomNavigationBar: _BottomBar(
           view: _view,
