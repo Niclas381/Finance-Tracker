@@ -28,6 +28,7 @@ class _CalendarHomePageState extends State<CalendarHomePage>
   _CalView? _previous;
   DateTime _selectedDate = DateTime.now();
   late final AnimationController _ctrl;
+  bool _sheetOpen = false;
 
   @override
   void initState() {
@@ -68,6 +69,17 @@ class _CalendarHomePageState extends State<CalendarHomePage>
       }
     });
     if (needsTransition) _ctrl.forward(from: 0);
+  }
+
+  Future<void> _openAddSheet() async {
+    setState(() => _sheetOpen = true);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const _AddSheet(),
+    );
+    if (mounted) setState(() => _sheetOpen = false);
   }
 
   @override
@@ -111,8 +123,10 @@ class _CalendarHomePageState extends State<CalendarHomePage>
         ),
         bottomNavigationBar: _BottomBar(
           view: _current,
+          sheetOpen: _sheetOpen,
           onBack: () => Navigator.of(context).pop(),
           onViewChanged: _switchView,
+          onAdd: _openAddSheet,
         ),
       ),
     );
@@ -120,11 +134,6 @@ class _CalendarHomePageState extends State<CalendarHomePage>
 }
 
 // ── One layer in the calendar stack ─────────────────────────────────────────
-//
-// Always built (state preserved). When idle, only the current view paints.
-// During a transition, both `previous` and `current` paint with their
-// per-pair transform; everything else stays Offstage.
-
 class _Layer extends StatelessWidget {
   const _Layer({
     required this.view,
@@ -142,9 +151,6 @@ class _Layer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The entire wrapper structure stays the same in every state — only the
-    // numeric/bool values change. That keeps the child element path stable so
-    // the views (especially MonthView's bar ScrollController) never detach.
     return AnimatedBuilder(
       animation: controller,
       child: RepaintBoundary(child: child),
@@ -161,7 +167,7 @@ class _Layer extends StatelessWidget {
         if (!involved) {
           offstage = true;
         } else if (p == null) {
-          offstage = view != current; // idle: only current is on-stage
+          offstage = view != current;
         } else {
           offstage = false;
           final isIncoming = view == current;
@@ -194,13 +200,6 @@ class _Layer extends StatelessWidget {
     );
   }
 
-  // ── Per-pair transitions ──────────────────────────────────────────────────
-  // day=0 (detail), week=1, month=2 (overview)
-  //
-  // Day  ↔ Week  : horizontal slide  + fade
-  // Week ↔ Month : vertical slide    + fade
-  // Day  ↔ Month : scale (zoom)      + fade
-
   static ({Offset translation, double scale, double opacity}) _transitionParams({
     required _CalView from,
     required _CalView to,
@@ -211,9 +210,8 @@ class _Layer extends StatelessWidget {
     final toI = to.index;
     final involves = {fromI, toI};
 
-    // ── Day ↔ Week : horizontal slide ──────────────────────────────────────
     if (involves.containsAll(const {0, 1})) {
-      final drillIn = toI < fromI; // week → day
+      final drillIn = toI < fromI;
       final outDir = drillIn ? -1.0 : 1.0;
       if (isIncoming) {
         return (
@@ -229,9 +227,8 @@ class _Layer extends StatelessWidget {
       );
     }
 
-    // ── Week ↔ Month : vertical slide ──────────────────────────────────────
     if (involves.containsAll(const {1, 2})) {
-      final drillIn = toI < fromI; // month → week
+      final drillIn = toI < fromI;
       final outDir = drillIn ? 1.0 : -1.0;
       if (isIncoming) {
         return (
@@ -247,8 +244,7 @@ class _Layer extends StatelessWidget {
       );
     }
 
-    // ── Day ↔ Month : zoom ─────────────────────────────────────────────────
-    final drillIn = toI < fromI; // month → day
+    final drillIn = toI < fromI;
     if (isIncoming) {
       final start = drillIn ? 0.7 : 1.3;
       return (
@@ -270,13 +266,17 @@ class _Layer extends StatelessWidget {
 class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.view,
+    required this.sheetOpen,
     required this.onBack,
     required this.onViewChanged,
+    required this.onAdd,
   });
 
   final _CalView view;
+  final bool sheetOpen;
   final VoidCallback onBack;
   final ValueChanged<_CalView> onViewChanged;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -294,47 +294,94 @@ class _BottomBar extends StatelessWidget {
           ),
         ],
       ),
-      padding: EdgeInsets.fromLTRB(20, 10, 20, 10 + bottomPad),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + bottomPad),
       child: Row(
         children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onBack,
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF222222),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.arrow_back_rounded,
-                    color: _backIcon, size: 22),
+          _IconChip(
+            icon: Icons.arrow_back_rounded,
+            onTap: onBack,
+            color: _backIcon,
+          ),
+          Expanded(
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _NavButton(
+                    icon: Icons.view_day_rounded,
+                    label: 'Tag',
+                    selected: view == _CalView.day,
+                    onTap: () => onViewChanged(_CalView.day),
+                  ),
+                  const SizedBox(width: 6),
+                  _NavButton(
+                    icon: Icons.view_week_rounded,
+                    label: 'Woche',
+                    selected: view == _CalView.week,
+                    onTap: () => onViewChanged(_CalView.week),
+                  ),
+                  const SizedBox(width: 6),
+                  _NavButton(
+                    icon: Icons.calendar_month_rounded,
+                    label: 'Monat',
+                    selected: view == _CalView.month,
+                    onTap: () => onViewChanged(_CalView.month),
+                  ),
+                ],
               ),
             ),
           ),
-          const Spacer(),
-          _NavButton(
-            icon: Icons.view_day_rounded,
-            label: 'Tag',
-            selected: view == _CalView.day,
-            onTap: () => onViewChanged(_CalView.day),
-          ),
-          const SizedBox(width: 20),
-          _NavButton(
-            icon: Icons.view_week_rounded,
-            label: 'Woche',
-            selected: view == _CalView.week,
-            onTap: () => onViewChanged(_CalView.week),
-          ),
-          const SizedBox(width: 20),
-          _NavButton(
-            icon: Icons.calendar_month_rounded,
-            label: 'Monat',
-            selected: view == _CalView.month,
-            onTap: () => onViewChanged(_CalView.month),
+          AnimatedScale(
+            duration: const Duration(milliseconds: 200),
+            scale: sheetOpen ? 0.0 : 1.0,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: sheetOpen ? 0.0 : 1.0,
+              child: _IconChip(
+                icon: Icons.add_rounded,
+                onTap: onAdd,
+                color: _active,
+                borderColor: _active.withValues(alpha: 0.25),
+              ),
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _IconChip extends StatelessWidget {
+  const _IconChip({
+    required this.icon,
+    required this.onTap,
+    required this.color,
+    this.borderColor,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color color;
+  final Color? borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF222222),
+            borderRadius: BorderRadius.circular(14),
+            border: borderColor != null
+                ? Border.all(color: borderColor!, width: 1)
+                : null,
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
       ),
     );
   }
@@ -363,7 +410,7 @@ class _NavButton extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: selected ? const Color(0xFF242424) : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
@@ -388,6 +435,59 @@ class _NavButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Add sheet ────────────────────────────────────────────────────────────────
+
+class _AddSheet extends StatelessWidget {
+  const _AddSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final height = MediaQuery.sizeOf(context).height * 0.6;
+    return Container(
+      height: height,
+      decoration: const BoxDecoration(
+        color: _barBg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: 10,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _inactive,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => Navigator.of(context).pop(),
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(Icons.close_rounded,
+                      color: _backIcon, size: 22),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
