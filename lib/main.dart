@@ -11,6 +11,12 @@ import 'apps/finance_tracker/services/share_intent_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Print full stack traces for every framework exception (Flutter normally
+  // dedupes them to "Another exception was thrown" with no context).
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details, forceReport: true);
+  };
+
   // Höchste vom Display unterstützte Bildwiederholrate anfordern (Android only;
   // iOS/ProMotion läuft seit Flutter 3.13 automatisch). Schlägt auf nicht
   // unterstützten Plattformen still fehl.

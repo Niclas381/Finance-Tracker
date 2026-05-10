@@ -110,11 +110,18 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
   void _syncBarToPage() {
     if (!_barController.hasClients || !_pageController.hasClients) return;
     final page = _pageController.page ?? _kInitialPage.toDouble();
-    final vw = _barController.position.viewportDimension;
-    final target = (_kItemWidth * page - vw / 2 + _kItemWidth / 2).clamp(
-      _barController.position.minScrollExtent,
-      _barController.position.maxScrollExtent,
-    );
+    final double vw;
+    final double minExtent;
+    final double maxExtent;
+    try {
+      vw = _barController.position.viewportDimension;
+      minExtent = _barController.position.minScrollExtent;
+      maxExtent = _barController.position.maxScrollExtent;
+    } catch (_) {
+      return;
+    }
+    final target = (_kItemWidth * page - vw / 2 + _kItemWidth / 2)
+        .clamp(minExtent, maxExtent);
     _barController.jumpTo(target);
   }
 
@@ -141,8 +148,16 @@ class _MonthViewState extends State<MonthView> with AutomaticKeepAliveClientMixi
   ///   stickyX = min(stickyX, nextStickyX - itemWidth)  ← pushed off by next year
   List<({int year, double x})> _computeYearLabels() {
     if (!_barController.hasClients) return [];
-    final offset = _barController.offset;
-    final vw = _barController.position.viewportDimension;
+    // Position is attached during mount but `viewportDimension` is only set
+    // once the ListView's first layout pass runs — guard the read.
+    final double offset;
+    final double vw;
+    try {
+      offset = _barController.offset;
+      vw = _barController.position.viewportDimension;
+    } catch (_) {
+      return [];
+    }
 
     // One extra year on each side so the push transition starts before the
     // label is visible and so the stuck label is always found.

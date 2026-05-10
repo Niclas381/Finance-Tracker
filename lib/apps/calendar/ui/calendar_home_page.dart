@@ -22,38 +22,52 @@ class CalendarHomePage extends StatefulWidget {
   State<CalendarHomePage> createState() => _CalendarHomePageState();
 }
 
-class _CalendarHomePageState extends State<CalendarHomePage> {
-  _CalView _view = _CalView.month;
+class _CalendarHomePageState extends State<CalendarHomePage>
+    with SingleTickerProviderStateMixin {
+  _CalView _current = _CalView.month;
+  _CalView? _previous;
   DateTime _selectedDate = DateTime.now();
-  late final PageController _pageController;
+  late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _CalView.month.index);
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _ctrl.addStatusListener((s) {
+      if (s == AnimationStatus.completed && mounted) {
+        setState(() => _previous = null);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   void _switchView(_CalView view) {
-    setState(() => _view = view);
-    _pageController.animateToPage(
-      view.index,
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeInOutCubicEmphasized,
-    );
+    if (_current == view) return;
+    setState(() {
+      _previous = _current;
+      _current = view;
+    });
+    _ctrl.forward(from: 0);
   }
 
   void _openDay(DateTime date) {
+    final needsTransition = _current != _CalView.day;
     setState(() {
       _selectedDate = date;
-      _view = _CalView.day;
+      if (needsTransition) {
+        _previous = _current;
+        _current = _CalView.day;
+      }
     });
-    _pageController.jumpToPage(_CalView.day.index);
+    if (needsTransition) _ctrl.forward(from: 0);
   }
 
   @override
@@ -68,21 +82,35 @@ class _CalendarHomePageState extends State<CalendarHomePage> {
         backgroundColor: _bg,
         body: SafeArea(
           bottom: false,
-          child: PageView(
-            controller: _pageController,
-            physics: const NeverScrollableScrollPhysics(),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              _ScaleFadePage(controller: _pageController, index: 0,
-                  child: DayView(date: _selectedDate)),
-              _ScaleFadePage(controller: _pageController, index: 1,
-                  child: WeekView(date: _selectedDate)),
-              _ScaleFadePage(controller: _pageController, index: 2,
-                  child: MonthView(onDayTapped: _openDay)),
+              _Layer(
+                view: _CalView.day,
+                current: _current,
+                previous: _previous,
+                controller: _ctrl,
+                child: DayView(date: _selectedDate),
+              ),
+              _Layer(
+                view: _CalView.week,
+                current: _current,
+                previous: _previous,
+                controller: _ctrl,
+                child: WeekView(date: _selectedDate),
+              ),
+              _Layer(
+                view: _CalView.month,
+                current: _current,
+                previous: _previous,
+                controller: _ctrl,
+                child: MonthView(onDayTapped: _openDay),
+              ),
             ],
           ),
         ),
         bottomNavigationBar: _BottomBar(
-          view: _view,
+          view: _current,
           onBack: () => Navigator.of(context).pop(),
           onViewChanged: _switchView,
         ),
@@ -91,36 +119,149 @@ class _CalendarHomePageState extends State<CalendarHomePage> {
   }
 }
 
-// ── Per-page scale + fade wrapper ───────────────────────────────────────────
-class _ScaleFadePage extends StatelessWidget {
-  const _ScaleFadePage({
+// ── One layer in the calendar stack ─────────────────────────────────────────
+//
+// Always built (state preserved). When idle, only the current view paints.
+// During a transition, both `previous` and `current` paint with their
+// per-pair transform; everything else stays Offstage.
+
+class _Layer extends StatelessWidget {
+  const _Layer({
+    required this.view,
+    required this.current,
+    required this.previous,
     required this.controller,
-    required this.index,
     required this.child,
   });
 
-  final PageController controller;
-  final int index;
+  final _CalView view;
+  final _CalView current;
+  final _CalView? previous;
+  final AnimationController controller;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    // The entire wrapper structure stays the same in every state — only the
+    // numeric/bool values change. That keeps the child element path stable so
+    // the views (especially MonthView's bar ScrollController) never detach.
     return AnimatedBuilder(
       animation: controller,
-      builder: (context, child) {
-        final page = controller.hasClients && controller.page != null
-            ? controller.page!
-            : index.toDouble();
-        final distance = (page - index).abs().clamp(0.0, 1.0);
-        final scale = 1.0 - distance * 0.06;
-        final opacity = 1.0 - distance * 0.45;
+      child: RepaintBoundary(child: child),
+      builder: (_, hoisted) {
+        final c = hoisted ?? RepaintBoundary(child: child);
+        final p = previous;
+        final involved = view == current || view == p;
 
-        return Transform.scale(
-          scale: scale,
-          child: Opacity(opacity: opacity, child: child),
+        bool offstage;
+        Offset translation = Offset.zero;
+        double scale = 1.0;
+        double opacity = 1.0;
+
+        if (!involved) {
+          offstage = true;
+        } else if (p == null) {
+          offstage = view != current; // idle: only current is on-stage
+        } else {
+          offstage = false;
+          final isIncoming = view == current;
+          final t = Curves.easeInOutCubic.transform(controller.value);
+          final params = _transitionParams(
+            from: p,
+            to: current,
+            isIncoming: isIncoming,
+            t: t,
+          );
+          translation = params.translation;
+          scale = params.scale;
+          opacity = params.opacity;
+        }
+
+        return Offstage(
+          offstage: offstage,
+          child: FractionalTranslation(
+            translation: translation,
+            child: Transform.scale(
+              scale: scale,
+              child: Opacity(
+                opacity: opacity,
+                child: c,
+              ),
+            ),
+          ),
         );
       },
-      child: child,
+    );
+  }
+
+  // ── Per-pair transitions ──────────────────────────────────────────────────
+  // day=0 (detail), week=1, month=2 (overview)
+  //
+  // Day  ↔ Week  : horizontal slide  + fade
+  // Week ↔ Month : vertical slide    + fade
+  // Day  ↔ Month : scale (zoom)      + fade
+
+  static ({Offset translation, double scale, double opacity}) _transitionParams({
+    required _CalView from,
+    required _CalView to,
+    required bool isIncoming,
+    required double t,
+  }) {
+    final fromI = from.index;
+    final toI = to.index;
+    final involves = {fromI, toI};
+
+    // ── Day ↔ Week : horizontal slide ──────────────────────────────────────
+    if (involves.containsAll(const {0, 1})) {
+      final drillIn = toI < fromI; // week → day
+      final outDir = drillIn ? -1.0 : 1.0;
+      if (isIncoming) {
+        return (
+          translation: Offset(-outDir * (1 - t) * 0.18, 0),
+          scale: 1.0,
+          opacity: t,
+        );
+      }
+      return (
+        translation: Offset(outDir * t * 0.18, 0),
+        scale: 1.0,
+        opacity: 1 - t,
+      );
+    }
+
+    // ── Week ↔ Month : vertical slide ──────────────────────────────────────
+    if (involves.containsAll(const {1, 2})) {
+      final drillIn = toI < fromI; // month → week
+      final outDir = drillIn ? 1.0 : -1.0;
+      if (isIncoming) {
+        return (
+          translation: Offset(0, -outDir * (1 - t) * 0.18),
+          scale: 1.0,
+          opacity: t,
+        );
+      }
+      return (
+        translation: Offset(0, outDir * t * 0.18),
+        scale: 1.0,
+        opacity: 1 - t,
+      );
+    }
+
+    // ── Day ↔ Month : zoom ─────────────────────────────────────────────────
+    final drillIn = toI < fromI; // month → day
+    if (isIncoming) {
+      final start = drillIn ? 0.7 : 1.3;
+      return (
+        translation: Offset.zero,
+        scale: start + (1.0 - start) * t,
+        opacity: t,
+      );
+    }
+    final end = drillIn ? 1.3 : 0.7;
+    return (
+      translation: Offset.zero,
+      scale: 1.0 + (end - 1.0) * t,
+      opacity: 1 - t,
     );
   }
 }
