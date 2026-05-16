@@ -11,9 +11,20 @@ const _barBg = Color(0xFF141414);
 const _active = Color(0xFFFFFFFF);
 const _inactive = Color(0xFF505050);
 const _backIcon = Color(0xFF606060);
+// Selected tab + panel share this colour so they look like one shape.
+const _panelBg = Color(0xFF242424);
+const _tabInactiveBg = Color(0xFF1A1A1A);
+
+// Intrinsic height of the bar row (nav button + outer vertical padding),
+// excluding the device's bottom safe-area inset. The body reserves this much
+// space so the views' size never changes when the bar expands.
+const double _kBarRowHeight = 70.0;
+const double _kTabHeight = 42.0;
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum _CalView { day, week, month }
+
+enum _AddTab { termin, todo }
 
 class CalendarHomePage extends StatefulWidget {
   const CalendarHomePage({super.key});
@@ -28,7 +39,7 @@ class _CalendarHomePageState extends State<CalendarHomePage>
   _CalView? _previous;
   DateTime _selectedDate = DateTime.now();
   late final AnimationController _ctrl;
-  bool _sheetOpen = false;
+  bool _addExpanded = false;
 
   @override
   void initState() {
@@ -71,15 +82,8 @@ class _CalendarHomePageState extends State<CalendarHomePage>
     if (needsTransition) _ctrl.forward(from: 0);
   }
 
-  Future<void> _openAddSheet() async {
-    setState(() => _sheetOpen = true);
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => const _AddSheet(),
-    );
-    if (mounted) setState(() => _sheetOpen = false);
+  void _toggleAdd() {
+    setState(() => _addExpanded = !_addExpanded);
   }
 
   @override
@@ -95,38 +99,69 @@ class _CalendarHomePageState extends State<CalendarHomePage>
         body: SafeArea(
           bottom: false,
           child: Stack(
-            fit: StackFit.expand,
             children: [
-              _Layer(
-                view: _CalView.day,
-                current: _current,
-                previous: _previous,
-                controller: _ctrl,
-                child: DayView(date: _selectedDate),
+              // Calendar views always occupy the same region — from the top
+              // of the safe area down to the top edge of the collapsed bar.
+              // The bar grows upward over this region when expanded, instead
+              // of pushing the views.
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: _kBarRowHeight +
+                    MediaQuery.of(context).padding.bottom,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _Layer(
+                      view: _CalView.day,
+                      current: _current,
+                      previous: _previous,
+                      controller: _ctrl,
+                      child: DayView(date: _selectedDate),
+                    ),
+                    _Layer(
+                      view: _CalView.week,
+                      current: _current,
+                      previous: _previous,
+                      controller: _ctrl,
+                      child: WeekView(date: _selectedDate),
+                    ),
+                    _Layer(
+                      view: _CalView.month,
+                      current: _current,
+                      previous: _previous,
+                      controller: _ctrl,
+                      child: MonthView(onDayTapped: _openDay),
+                    ),
+                  ],
+                ),
               ),
-              _Layer(
-                view: _CalView.week,
-                current: _current,
-                previous: _previous,
-                controller: _ctrl,
-                child: WeekView(date: _selectedDate),
-              ),
-              _Layer(
-                view: _CalView.month,
-                current: _current,
-                previous: _previous,
-                controller: _ctrl,
-                child: MonthView(onDayTapped: _openDay),
+              // Tap-outside-to-close barrier. Sits above the views and
+              // below the bar in z-order — the bar still receives its own
+              // taps because it's the last child in the Stack.
+              if (_addExpanded)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _toggleAdd,
+                  ),
+                ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _BottomBar(
+                  view: _current,
+                  expanded: _addExpanded,
+                  onBack: () => Navigator.of(context).pop(),
+                  onViewChanged: _switchView,
+                  onAdd: _toggleAdd,
+                  onDismiss: _addExpanded ? _toggleAdd : null,
+                ),
               ),
             ],
           ),
-        ),
-        bottomNavigationBar: _BottomBar(
-          view: _current,
-          sheetOpen: _sheetOpen,
-          onBack: () => Navigator.of(context).pop(),
-          onViewChanged: _switchView,
-          onAdd: _openAddSheet,
         ),
       ),
     );
@@ -263,89 +298,207 @@ class _Layer extends StatelessWidget {
 }
 
 // ── Bottom bar ───────────────────────────────────────────────────────────────
-class _BottomBar extends StatelessWidget {
+class _BottomBar extends StatefulWidget {
   const _BottomBar({
     required this.view,
-    required this.sheetOpen,
+    required this.expanded,
     required this.onBack,
     required this.onViewChanged,
     required this.onAdd,
+    required this.onDismiss,
   });
 
   final _CalView view;
-  final bool sheetOpen;
+  final bool expanded;
   final VoidCallback onBack;
   final ValueChanged<_CalView> onViewChanged;
   final VoidCallback onAdd;
+  // Called when the user pulls the expanded panel down past the threshold.
+  // Null when the bar is collapsed.
+  final VoidCallback? onDismiss;
+
+  @override
+  State<_BottomBar> createState() => _BottomBarState();
+}
+
+class _BottomBarState extends State<_BottomBar> {
+  // Cumulative downward drag distance during an active drag.
+  // setState'd on update so the panel follows the finger.
+  double _dragDy = 0;
+  _AddTab _activeTab = _AddTab.termin;
+
+  void _onDragStart(DragStartDetails _) {
+    setState(() => _dragDy = 0);
+  }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    setState(() {
+      _dragDy = (_dragDy + d.delta.dy).clamp(0.0, double.infinity);
+    });
+  }
+
+  void _onDragEnd(DragEndDetails d, double panelFullHeight) {
+    final v = d.primaryVelocity ?? 0;
+    final shouldClose = _dragDy > panelFullHeight * 0.25 || v > 250;
+    _dragDy = 0;
+    if (shouldClose) {
+      widget.onDismiss?.call();
+    } else {
+      setState(() {}); // snap back to full height
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom;
+    final panelFullHeight = MediaQuery.sizeOf(context).height * 0.5;
+    final panelHeight =
+        (panelFullHeight - _dragDy).clamp(0.0, panelFullHeight);
+    final isDragging = _dragDy > 0;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: _barBg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x55000000),
-            blurRadius: 24,
-            offset: Offset(0, -4),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + bottomPad),
-      child: Row(
-        children: [
-          _IconChip(
-            icon: Icons.arrow_back_rounded,
-            onTap: onBack,
-            color: _backIcon,
-          ),
-          Expanded(
-            child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _NavButton(
-                    icon: Icons.view_day_rounded,
-                    label: 'Tag',
-                    selected: view == _CalView.day,
-                    onTap: () => onViewChanged(_CalView.day),
-                  ),
-                  const SizedBox(width: 6),
-                  _NavButton(
-                    icon: Icons.view_week_rounded,
-                    label: 'Woche',
-                    selected: view == _CalView.week,
-                    onTap: () => onViewChanged(_CalView.week),
-                  ),
-                  const SizedBox(width: 6),
-                  _NavButton(
-                    icon: Icons.calendar_month_rounded,
-                    label: 'Monat',
-                    selected: view == _CalView.month,
-                    onTap: () => onViewChanged(_CalView.month),
-                  ),
-                ],
-              ),
+    return AnimatedSize(
+      // No animation while dragging — the panel needs to track the finger 1:1.
+      duration: isDragging
+          ? Duration.zero
+          : const Duration(milliseconds: 320),
+      curve: Curves.easeInOutCubic,
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: _barBg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x55000000),
+              blurRadius: 24,
+              offset: Offset(0, -4),
             ),
-          ),
-          AnimatedScale(
-            duration: const Duration(milliseconds: 200),
-            scale: sheetOpen ? 0.0 : 1.0,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: sheetOpen ? 0.0 : 1.0,
-              child: _IconChip(
-                icon: Icons.add_rounded,
-                onTap: onAdd,
-                color: _active,
-                borderColor: _active.withValues(alpha: 0.25),
+          ],
+        ),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 10 + bottomPad),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.expanded)
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragStart: _onDragStart,
+                onVerticalDragUpdate: _onDragUpdate,
+                onVerticalDragEnd: (d) => _onDragEnd(d, panelFullHeight),
+                child: SizedBox(
+                  height: panelHeight,
+                  width: double.infinity,
+                  // Inner content stays at full size; ClipRect handles the
+                  // shrinking SizedBox while the user drags down. Aligning
+                  // the content to the BOTTOM keeps the tabs (which sit just
+                  // above the bar row) visible the longest as the user drags.
+                  child: ClipRect(
+                    child: OverflowBox(
+                      minHeight: 0,
+                      maxHeight: panelFullHeight,
+                      alignment: Alignment.bottomCenter,
+                      child: Column(
+                        children: [
+                          // Light grey panel takes the upper portion.
+                          const Expanded(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: _panelBg,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: Radius.circular(20),
+                                  topRight: Radius.circular(20),
+                                ),
+                              ),
+                              child: SizedBox.expand(),
+                            ),
+                          ),
+                          // Tabs sit at the bottom of the expanded area so
+                          // they're within thumb reach.
+                          SizedBox(
+                            height: _kTabHeight,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _PanelTab(
+                                    label: 'Termin',
+                                    selected: _activeTab == _AddTab.termin,
+                                    borderRadius: const BorderRadius.only(
+                                      bottomLeft: Radius.circular(16),
+                                    ),
+                                    onTap: () => setState(
+                                        () => _activeTab = _AddTab.termin),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _PanelTab(
+                                    label: 'ToDo',
+                                    selected: _activeTab == _AddTab.todo,
+                                    borderRadius: const BorderRadius.only(
+                                      bottomRight: Radius.circular(16),
+                                    ),
+                                    onTap: () => setState(
+                                        () => _activeTab = _AddTab.todo),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
+            // Gap between the expanded area and the bar row icons.
+            if (widget.expanded) const SizedBox(height: 10),
+            Row(
+              children: [
+                _IconChip(
+                  icon: Icons.arrow_back_rounded,
+                  onTap: widget.onBack,
+                  color: _backIcon,
+                ),
+                Expanded(
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _NavButton(
+                          icon: Icons.view_day_rounded,
+                          label: 'Tag',
+                          selected: widget.view == _CalView.day,
+                          onTap: () => widget.onViewChanged(_CalView.day),
+                        ),
+                        const SizedBox(width: 6),
+                        _NavButton(
+                          icon: Icons.view_week_rounded,
+                          label: 'Woche',
+                          selected: widget.view == _CalView.week,
+                          onTap: () => widget.onViewChanged(_CalView.week),
+                        ),
+                        const SizedBox(width: 6),
+                        _NavButton(
+                          icon: Icons.calendar_month_rounded,
+                          label: 'Monat',
+                          selected: widget.view == _CalView.month,
+                          onTap: () => widget.onViewChanged(_CalView.month),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                _IconChip(
+                  icon: widget.expanded
+                      ? Icons.close_rounded
+                      : Icons.add_rounded,
+                  onTap: widget.onAdd,
+                  color: _active,
+                  borderColor: _active.withValues(alpha: 0.25),
+                ),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -440,55 +593,50 @@ class _NavButton extends StatelessWidget {
   }
 }
 
-// ── Add sheet ────────────────────────────────────────────────────────────────
+// ── Panel tab (Termin / ToDo) ────────────────────────────────────────────────
+//
+// The selected tab shares its fill colour with the panel above it and has a
+// flat top, so the two read as a single continuous shape. The inactive tab
+// uses a darker fill so it reads as a separate button. Only the outer-bottom
+// corner of each tab is rounded — the edge where the two tabs meet stays
+// square.
+class _PanelTab extends StatelessWidget {
+  const _PanelTab({
+    required this.label,
+    required this.selected,
+    required this.borderRadius,
+    required this.onTap,
+  });
 
-class _AddSheet extends StatelessWidget {
-  const _AddSheet();
+  final String label;
+  final bool selected;
+  final BorderRadius borderRadius;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.sizeOf(context).height * 0.6;
-    return Container(
-      height: height,
-      decoration: const BoxDecoration(
-        color: _barBg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 10,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _inactive,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: selected ? _panelBg : _tabInactiveBg,
+          borderRadius: borderRadius,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? _active : _inactive,
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            letterSpacing: 0.3,
           ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => Navigator.of(context).pop(),
-                borderRadius: BorderRadius.circular(20),
-                child: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Icon(Icons.close_rounded,
-                      color: _backIcon, size: 22),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
+
