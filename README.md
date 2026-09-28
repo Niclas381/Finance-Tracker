@@ -1,29 +1,37 @@
 # Finanztracker
 
-Eine Android-App, um Ausgaben zu erfassen, Budgets im Blick zu behalten und digitale Kassenzettel zu verwalten. Eine visuelle Budgetübersicht und Statistiken nach Zeitraum und Kategorie machen die eigenen Ausgaben nachvollziehbar.
+**Deine Ausgaben im Blick. Dein Budget im Griff.**
 
-## Funktionen
+Finanztracker ist eine Android-App für den Überblick über persönliche Ausgaben, Budgets und digitale Kassenzettel. Von der täglichen Budgetkontrolle bis zur Auswertung nach Kategorien bringt sie die wichtigsten Informationen an einem Ort zusammen.
 
-- **Budgets und Kategorien:** Verbleibendes Budget auf einen Blick sehen und Ausgaben verschiedenen Kategorien zuordnen.
-- **Auswertungen:** Gesamtausgaben und kumulierten Sparverlauf für einen wählbaren Zeitraum betrachten sowie die Auslastung der Kategorienbudgets prüfen.
-- **Digitale Kassenzettel:** Belege aus E-Mails verwalten, filtern, als PDF öffnen und herunterladen.
-- **Nachrichtenerkennung:** Kartenzahlungen aus Benachrichtigungen und SMS erkennen. Doppelte Einträge mit gleichem Betrag innerhalb von ±5 Minuten werden zusammengeführt; Kassenzettel haben Vorrang.
+## Auf einen Blick sehen, was noch übrig ist
 
-## Einblicke
+Die Budgetübersicht zeigt dir direkt, wie viel Geld noch zur Verfügung steht und wie viel du heute bereits ausgegeben hast. Mit eigenen Ausgabenkategorien und passenden Budgets behältst du unterschiedliche Lebensbereiche im Blick.
 
-### Budgetübersicht
+<p align="center">
+  <img src="docs/images/dashboard.png" width="360" alt="Budgetübersicht mit verbleibendem Budget und Ausgabenkategorien">
+</p>
 
-<img src="docs/images/dashboard.png" width="420" alt="Budgetübersicht mit verbleibendem Budget und Ausgabenkategorien">
+## Verstehen, wohin dein Geld fließt
 
-### Statistik
+Wähle einen Zeitraum und betrachte deine Gesamtausgaben sowie den Verlauf deiner kumulierten Ersparnis. Die Kategorienübersicht zeigt zusätzlich, wie viel deiner jeweiligen Monatsbudgets bereits verbraucht ist.
 
-<img src="docs/images/statistik.png" width="420" alt="Statistik mit Gesamtausgaben, Sparverlauf und Kategorienbudgets">
+<p align="center">
+  <img src="docs/images/statistik.png" width="360" alt="Statistik mit Gesamtausgaben, Sparverlauf und Kategorienbudgets">
+</p>
 
-### Kassenzettel
+## Digitale Kassenzettel gesammelt verwalten
 
-<img src="docs/images/kassenzettel.png" width="420" alt="Digitale Kassenzettel mit PDF- und Download-Funktionen">
+Behalte deine Belege an einem Ort: Die Kassenzettelübersicht listet digitale Belege aus E-Mails mit Händler, Datum und Herkunft auf. Über Filter und den direkten Zugriff auf PDFs findest du deine Belege wieder und kannst sie herunterladen.
 
-### Nachrichtenerkennung
+<p align="center">
+  <img src="docs/images/kassenzettel.png" width="360" alt="Liste digitaler Kassenzettel mit Filtern, PDF-Zugriff und Download">
+</p>
 
-<img src="docs/images/nachrichtenerkennung.png" width="420" alt="Einstellungen der Nachrichtenerkennung">
+## Kartenzahlungen automatisch erkennen
 
+Die aktivierbare Nachrichtenerkennung erfasst Kartenzahlungen aus Benachrichtigungen und SMS. Einträge mit gleichem Betrag innerhalb von ±5 Minuten werden als Duplikate zusammengeführt; Kassenzettel haben dabei Vorrang. Für die Erkennung aus Benachrichtigungen wird der entsprechende Android-Zugriff benötigt.
+
+<p align="center">
+  <img src="docs/images/nachrichtenerkennung.png" width="360" alt="Aktivierte Nachrichtenerkennung mit Einstellungen für den Benachrichtigungszugriff">
+</p>
