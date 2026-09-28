@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Finanztracker
 
 Eine Android-App, um Ausgaben zu erfassen, Budgets im Blick zu behalten und digitale Kassenzettel zu verwalten. Eine visuelle Budgetübersicht und Statistiken nach Zeitraum und Kategorie machen die eigenen Ausgaben nachvollziehbar.
@@ -25,3 +26,8 @@ Die Erkennung lässt sich in der App aktivieren und deaktivieren. Für Benachric
 <img src="docs/images/nachrichtenerkennung.png" width="420" alt="Einstellungen der Nachrichtenerkennung mit aktiviertem Benachrichtigungszugriff">
 
 </details>
+=======
+# Finance Tracker
+
+A mobile App for tracking financials
+>>>>>>> 8cc7341496f09950f564fc9427cf31f66bf2d29b
