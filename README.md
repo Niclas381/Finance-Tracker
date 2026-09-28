@@ -1,15 +1,6 @@
-<<<<<<< HEAD
 # Finanztracker
 
 Eine Android-App, um Ausgaben zu erfassen, Budgets im Blick zu behalten und digitale Kassenzettel zu verwalten. Eine visuelle Budgetübersicht und Statistiken nach Zeitraum und Kategorie machen die eigenen Ausgaben nachvollziehbar.
-
-## Einblicke
-
-| Budgetübersicht | Statistik | Kassenzettel |
-| :---: | :---: | :---: |
-| <img src="docs/images/dashboard.png" width="240" alt="Budgetübersicht mit verbleibendem Budget und Ausgabenkategorien"> | <img src="docs/images/statistik.png" width="240" alt="Statistik mit Gesamtausgaben, kumuliertem Sparverlauf und Kategorienbudgets"> | <img src="docs/images/kassenzettel.png" width="240" alt="Liste digitaler Kassenzettel mit PDF- und Download-Funktionen"> |
-
-*Die Screenshots zeigen verschiedene Ansichten und Erfassungsstände.*
 
 ## Funktionen
 
@@ -18,16 +9,21 @@ Eine Android-App, um Ausgaben zu erfassen, Budgets im Blick zu behalten und digi
 - **Digitale Kassenzettel:** Belege aus E-Mails verwalten, filtern, als PDF öffnen und herunterladen.
 - **Nachrichtenerkennung:** Kartenzahlungen aus Benachrichtigungen und SMS erkennen. Doppelte Einträge mit gleichem Betrag innerhalb von ±5 Minuten werden zusammengeführt; Kassenzettel haben Vorrang.
 
-<details>
-<summary>Nachrichtenerkennung ansehen</summary>
+## Einblicke
 
-Die Erkennung lässt sich in der App aktivieren und deaktivieren. Für Benachrichtigungen wird der entsprechende Android-Zugriff benötigt.
+### Budgetübersicht
 
-<img src="docs/images/nachrichtenerkennung.png" width="420" alt="Einstellungen der Nachrichtenerkennung mit aktiviertem Benachrichtigungszugriff">
+<img src="docs/images/dashboard.png" width="420" alt="Budgetübersicht mit verbleibendem Budget und Ausgabenkategorien">
 
-</details>
-=======
-# Finance Tracker
+### Statistik
 
-A mobile App for tracking financials
->>>>>>> 8cc7341496f09950f564fc9427cf31f66bf2d29b
+<img src="docs/images/statistik.png" width="420" alt="Statistik mit Gesamtausgaben, Sparverlauf und Kategorienbudgets">
+
+### Kassenzettel
+
+<img src="docs/images/kassenzettel.png" width="420" alt="Digitale Kassenzettel mit PDF- und Download-Funktionen">
+
+### Nachrichtenerkennung
+
+<img src="docs/images/nachrichtenerkennung.png" width="420" alt="Einstellungen der Nachrichtenerkennung">
+
